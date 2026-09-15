@@ -1,9 +1,8 @@
 # Foundation_Day-Web_App
 
-##What Your System Can Do
+What My System Can Do
 
 1. Register Students
-
 Student ID
 Full Name
 Program
@@ -12,7 +11,6 @@ Selected Booth
 Automatic date and time
 
 2. Manage Booths
-
 Add a booth
 Edit a booth
 Delete a booth
@@ -24,7 +22,6 @@ Every registration creates a record connecting a student to a booth.
 
 4. Dashboard
 The dashboard shows:
-
 Total Students Registered
 Total Booths
 Total Booth Visits
