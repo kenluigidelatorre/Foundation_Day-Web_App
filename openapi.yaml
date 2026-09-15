@@ -1,0 +1,518 @@
+openapi: 3.0.0
+
+info:
+  title: Foundation Day Booth Log Book API
+  description: API for managing Foundation Day students, booths, and booth visit registrations.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5000
+
+tags:
+  - name: Dashboard
+    description: Dashboard statistics
+  - name: Booths
+    description: Booth management
+  - name: Registration Logs
+    description: Student booth registration
+
+paths:
+
+  # =========================
+  # DASHBOARD
+  # =========================
+
+  /api/dashboard/stats:
+
+    get:
+      tags:
+        - Dashboard
+
+      summary: Get dashboard statistics
+
+      description: Returns student, booth, visit, booth activity, and recent registration statistics.
+
+      responses:
+
+        "200":
+          description: Dashboard statistics retrieved successfully
+
+          content:
+            application/json:
+              schema:
+                type: object
+
+                properties:
+
+                  totalStudents:
+                    type: integer
+                    example: 50
+
+                  totalBooths:
+                    type: integer
+                    example: 5
+
+                  totalVisits:
+                    type: integer
+                    example: 120
+
+                  mostVisitedBooth:
+                    type: object
+                    nullable: true
+
+                    properties:
+                      booth_name:
+                        type: string
+                        example: Perya Booth
+
+                      visitor_count:
+                        type: integer
+                        example: 35
+
+                  boothActivity:
+                    type: array
+
+                    items:
+                      type: object
+
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+
+                        booth_name:
+                          type: string
+                          example: Perya Booth
+
+                        visitor_count:
+                          type: integer
+                          example: 35
+
+                        percentage:
+                          type: number
+                          example: 29.17
+
+                  recentRegistrations:
+                    type: array
+
+                    items:
+                      type: object
+
+                      properties:
+                        id:
+                          type: integer
+                          example: 10
+
+                        student_id:
+                          type: string
+                          example: 2026-001
+
+                        full_name:
+                          type: string
+                          example: Juan Dela Cruz
+
+                        program:
+                          type: string
+                          example: BSIT
+
+                        booth_name:
+                          type: string
+                          example: Perya Booth
+
+                        visit_date:
+                          type: string
+                          format: date
+
+                        visit_time:
+                          type: string
+
+
+  # =========================
+  # BOOTHS
+  # =========================
+
+  /api/booths:
+
+    get:
+      tags:
+        - Booths
+
+      summary: Get all booths
+
+      responses:
+
+        "200":
+          description: List of booths
+
+          content:
+            application/json:
+              schema:
+                type: array
+
+                items:
+                  $ref: "#/components/schemas/Booth"
+
+
+    post:
+      tags:
+        - Booths
+
+      summary: Add a new booth
+
+      requestBody:
+        required: true
+
+        content:
+          application/json:
+
+            schema:
+              type: object
+
+              required:
+                - booth_name
+
+              properties:
+
+                booth_name:
+                  type: string
+                  example: Perya Booth
+
+                description:
+                  type: string
+                  example: Games and activities for Foundation Day.
+
+                location:
+                  type: string
+                  example: Student Activity Area
+
+      responses:
+
+        "201":
+          description: Booth created successfully
+
+        "400":
+          description: Invalid booth information
+
+        "500":
+          description: Server error
+
+
+  /api/booths/{id}:
+
+    get:
+      tags:
+        - Booths
+
+      summary: Get a booth by ID
+
+      parameters:
+
+        - name: id
+          in: path
+          required: true
+
+          schema:
+            type: integer
+
+          example: 1
+
+      responses:
+
+        "200":
+          description: Booth retrieved successfully
+
+        "404":
+          description: Booth not found
+
+
+    put:
+      tags:
+        - Booths
+
+      summary: Update a booth
+
+      parameters:
+
+        - name: id
+          in: path
+          required: true
+
+          schema:
+            type: integer
+
+          example: 1
+
+      requestBody:
+        required: true
+
+        content:
+          application/json:
+
+            schema:
+              type: object
+
+              properties:
+
+                booth_name:
+                  type: string
+                  example: Updated Perya Booth
+
+                description:
+                  type: string
+                  example: Updated booth description.
+
+                location:
+                  type: string
+                  example: Covered Court
+
+      responses:
+
+        "200":
+          description: Booth updated successfully
+
+        "404":
+          description: Booth not found
+
+        "500":
+          description: Server error
+
+
+    delete:
+      tags:
+        - Booths
+
+      summary: Delete a booth
+
+      parameters:
+
+        - name: id
+          in: path
+          required: true
+
+          schema:
+            type: integer
+
+          example: 1
+
+      responses:
+
+        "200":
+          description: Booth deleted successfully
+
+        "404":
+          description: Booth not found
+
+        "500":
+          description: Server error
+
+
+  # =========================
+  # REGISTRATION LOGS
+  # =========================
+
+  /api/logs:
+
+    get:
+      tags:
+        - Registration Logs
+
+      summary: Get registration logs
+
+      description: Returns student booth visit records. Supports searching by student ID, name, program, or booth.
+
+      parameters:
+
+        - name: search
+          in: query
+          required: false
+
+          schema:
+            type: string
+
+          example: Juan
+
+      responses:
+
+        "200":
+          description: Registration logs retrieved successfully
+
+          content:
+            application/json:
+
+              schema:
+                type: array
+
+                items:
+                  $ref: "#/components/schemas/RegistrationLog"
+
+
+    post:
+      tags:
+        - Registration Logs
+
+      summary: Register a student for a booth
+
+      requestBody:
+        required: true
+
+        content:
+          application/json:
+
+            schema:
+              $ref: "#/components/schemas/RegistrationRequest"
+
+      responses:
+
+        "201":
+          description: Student registered successfully
+
+        "400":
+          description: Missing required information
+
+        "409":
+          description: Student is already registered for this booth
+
+        "500":
+          description: Registration failed
+
+
+  /api/logs/{id}:
+
+    delete:
+      tags:
+        - Registration Logs
+
+      summary: Delete a registration
+
+      parameters:
+
+        - name: id
+          in: path
+          required: true
+
+          schema:
+            type: integer
+
+          example: 1
+
+      responses:
+
+        "200":
+          description: Registration deleted successfully
+
+        "404":
+          description: Registration not found
+
+        "500":
+          description: Server error
+
+
+# =========================
+# COMPONENTS / SCHEMAS
+# =========================
+
+components:
+
+  schemas:
+
+    Booth:
+
+      type: object
+
+      properties:
+
+        id:
+          type: integer
+          example: 1
+
+        booth_name:
+          type: string
+          example: Perya Booth
+
+        description:
+          type: string
+          example: Games and activities.
+
+        location:
+          type: string
+          example: Covered Court
+
+        date_created:
+          type: string
+          format: date-time
+
+
+    RegistrationRequest:
+
+      type: object
+
+      required:
+        - student_id
+        - full_name
+        - program
+        - block_year
+        - booth_id
+
+      properties:
+
+        student_id:
+          type: string
+          example: 2026-001
+
+        full_name:
+          type: string
+          example: Juan Dela Cruz
+
+        program:
+          type: string
+          example: BSIT
+
+        block_year:
+          type: string
+          example: 3-Python
+
+        booth_id:
+          type: integer
+          example: 1
+
+
+    RegistrationLog:
+
+      type: object
+
+      properties:
+
+        id:
+          type: integer
+          example: 1
+
+        student_id:
+          type: string
+          example: 2026-001
+
+        full_name:
+          type: string
+          example: Juan Dela Cruz
+
+        program:
+          type: string
+          example: BSIT
+
+        block_year:
+          type: string
+          example: 3-Python
+
+        booth_name:
+          type: string
+          example: Perya Booth
+
+        booth_id:
+          type: integer
+          example: 1
+
+        visit_date:
+          type: string
+          format: date
+
+        visit_time:
+          type: string
