@@ -43,6 +43,7 @@ router.get("/", async (req, res) => {
             `,
       [`%${search}%`],
     );
+    
 
     res.json(result.rows);
   } catch (error) {
