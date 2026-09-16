@@ -1,20 +1,33 @@
 import { useEffect, useState } from "react";
 
+const API_URL = "http://localhost:5000";
+
 function Dashboard() {
   const [stats, setStats] = useState(null);
+  const [registrations, setRegistrations] = useState([]);
+  const [search, setSearch] = useState("");
+
   const [loading, setLoading] = useState(true);
+  const [loadingRegistrations, setLoadingRegistrations] = useState(false);
   const [error, setError] = useState("");
 
-  // Fetch dashboard statistics
+  // ==========================================
+  // FETCH DASHBOARD STATS
+  // ==========================================
+
   const fetchStats = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/dashboard/stats");
+      setLoading(true);
+      setError("");
+
+      const response = await fetch(`${API_URL}/api/dashboard/stats`);
 
       if (!response.ok) {
         throw new Error("Failed to load dashboard.");
       }
 
       const data = await response.json();
+
       setStats(data);
     } catch (error) {
       console.error(error);
@@ -24,12 +37,58 @@ function Dashboard() {
     }
   };
 
-  // Load dashboard when page opens
+  // ==========================================
+  // FETCH REGISTRATIONS
+  // ==========================================
+
+  const fetchRegistrations = async (searchValue = "") => {
+    try {
+      setLoadingRegistrations(true);
+
+      const response = await fetch(
+        `${API_URL}/api/logs?search=${encodeURIComponent(searchValue)}`,
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to load registration records.");
+      }
+
+      const data = await response.json();
+
+      setRegistrations(data);
+    } catch (error) {
+      console.error(error);
+      setError(error.message);
+    } finally {
+      setLoadingRegistrations(false);
+    }
+  };
+
+  // ==========================================
+  // INITIAL LOAD
+  // ==========================================
+
   useEffect(() => {
     fetchStats();
+    fetchRegistrations();
   }, []);
 
-  // Delete registration
+  // ==========================================
+  // SEARCH
+  // ==========================================
+
+  useEffect(() => {
+    const delay = setTimeout(() => {
+      fetchRegistrations(search);
+    }, 300);
+
+    return () => clearTimeout(delay);
+  }, [search]);
+
+  // ==========================================
+  // DELETE REGISTRATION
+  // ==========================================
+
   const handleDelete = async (id) => {
     const confirmed = window.confirm(
       "Are you sure you want to delete this registration?",
@@ -40,11 +99,10 @@ function Dashboard() {
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/logs/${id}`, {
+      const response = await fetch(`${API_URL}/api/logs/${id}`, {
         method: "DELETE",
       });
 
-      // Get response as text first
       const text = await response.text();
 
       let data;
@@ -65,23 +123,35 @@ function Dashboard() {
 
       alert("Registration deleted successfully!");
 
-      // Reload dashboard data
+      // Refresh dashboard statistics
       await fetchStats();
+
+      // Refresh search results
+      await fetchRegistrations(search);
     } catch (error) {
       console.error("DELETE ERROR:", error);
+
       alert(error.message);
     }
   };
 
+  // ==========================================
+  // LOADING
+  // ==========================================
+
   if (loading) {
     return (
       <div className="page">
-        <h2>Loading dashboard...</h2>
+        <div className="loading">Loading dashboard...</div>
       </div>
     );
   }
 
-  if (error) {
+  // ==========================================
+  // ERROR
+  // ==========================================
+
+  if (error && !stats) {
     return (
       <div className="page">
         <div className="page-header">
@@ -95,31 +165,46 @@ function Dashboard() {
 
   return (
     <div className="page">
-      {/* PAGE HEADER */}
+      {/* ==================================
+                PAGE HEADER
+            ================================== */}
+
       <div className="page-header">
-        <h1>Foundation Day Dashboard</h1>
-        <p>Monitor students, booths, and booth visits.</p>
+        <div>
+          <h1>Foundation Day Dashboard</h1>
+
+          <p>Monitor students, booths, and booth visits.</p>
+        </div>
       </div>
 
-      {/* STATISTICS */}
+      {/* ==================================
+                STAT CARDS
+            ================================== */}
+
       <div className="stats-grid">
         <div className="stat-card">
           <h3>Total Students Registered</h3>
+
           <h2>{stats.totalStudents}</h2>
         </div>
 
         <div className="stat-card">
           <h3>Total Booths</h3>
+
           <h2>{stats.totalBooths}</h2>
         </div>
 
         <div className="stat-card">
           <h3>Total Booth Visits</h3>
+
           <h2>{stats.totalVisits}</h2>
         </div>
       </div>
 
-      {/* MOST VISITED BOOTH */}
+      {/* ==================================
+                MOST VISITED BOOTH
+            ================================== */}
+
       <div className="dashboard-section">
         <h2>Most Visited Booth</h2>
 
@@ -134,7 +219,10 @@ function Dashboard() {
         )}
       </div>
 
-      {/* BOOTH ACTIVITY */}
+      {/* ==================================
+                BOOTH ACTIVITY
+            ================================== */}
+
       <div className="dashboard-section">
         <h2>Booth Activity</h2>
 
@@ -164,17 +252,48 @@ function Dashboard() {
         )}
       </div>
 
-      {/* RECENT REGISTRATIONS */}
+      {/* ==================================
+                ALL REGISTRATIONS + SEARCH
+            ================================== */}
+
       <div className="dashboard-section">
         <div className="section-header">
           <div>
-            <h2>Registered Students</h2>
-            <p>Most recent student registrations.</p>
+            <h2>Student Registrations</h2>
+
+            <p>Search by student ID, name, or program.</p>
+          </div>
+
+          <div className="search-box">
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search student..."
+            />
           </div>
         </div>
 
-        {stats.recentRegistrations.length === 0 ? (
-          <p>No registrations yet.</p>
+        {/* Search result count */}
+
+        <div className="search-result-count">
+          {loadingRegistrations
+            ? "Searching..."
+            : `${registrations.length} registration${
+                registrations.length !== 1 ? "s" : ""
+              } found`}
+        </div>
+
+        {/* ==================================
+                    TABLE
+                ================================== */}
+
+        {registrations.length === 0 ? (
+          <div className="empty-state">
+            <h3>No students found</h3>
+
+            <p>Try searching using a different student name, ID, or program.</p>
+          </div>
         ) : (
           <div className="table-container">
             <table>
@@ -183,6 +302,7 @@ function Dashboard() {
                   <th>Student ID</th>
                   <th>Name</th>
                   <th>Program</th>
+                  <th>Block & Year</th>
                   <th>Booth</th>
                   <th>Date</th>
                   <th>Time</th>
@@ -191,13 +311,15 @@ function Dashboard() {
               </thead>
 
               <tbody>
-                {stats.recentRegistrations.map((registration) => (
+                {registrations.map((registration) => (
                   <tr key={registration.id}>
                     <td>{registration.student_id}</td>
 
                     <td>{registration.full_name}</td>
 
                     <td>{registration.program}</td>
+
+                    <td>{registration.block_year}</td>
 
                     <td>{registration.booth_name}</td>
 

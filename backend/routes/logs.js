@@ -2,13 +2,19 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 
-// ==============================
+// ==========================================
 // GET ALL REGISTRATION LOGS
-// ==============================
-router.get("/", async (req, res) => {
-  try {
-    const { search = "" } = req.query;
+// Supports search by:
+// Student ID
+// Full Name
+// Program
+// Booth
+// ==========================================
 
+router.get("/", async (req, res) => {
+  const { search = "" } = req.query;
+
+  try {
     const result = await pool.query(
       `
             SELECT
@@ -18,9 +24,10 @@ router.get("/", async (req, res) => {
                 s.program,
                 s.block_year,
                 b.booth_name,
-                b.id AS booth_id,
+                b.location,
                 bl.visit_date,
-                bl.visit_time
+                bl.visit_time,
+                bl.created_at
             FROM booth_logs bl
             INNER JOIN students s
                 ON bl.student_id = s.id
@@ -30,6 +37,7 @@ router.get("/", async (req, res) => {
                 s.student_id ILIKE $1
                 OR s.full_name ILIKE $1
                 OR s.program ILIKE $1
+                OR s.block_year ILIKE $1
                 OR b.booth_name ILIKE $1
             ORDER BY bl.created_at DESC
             `,
@@ -46,25 +54,29 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ==============================
-// CREATE REGISTRATION
-// ==============================
+// ==========================================
+// REGISTER STUDENT / CREATE LOG
+// ==========================================
+
 router.post("/", async (req, res) => {
+  const { student_id, full_name, program, block_year, booth_id } = req.body;
+
+  if (!student_id || !full_name || !program || !block_year || !booth_id) {
+    return res.status(400).json({
+      message: "Please complete all required fields.",
+    });
+  }
+
   const client = await pool.connect();
 
   try {
-    const { student_id, full_name, program, block_year, booth_id } = req.body;
-
-    if (!student_id || !full_name || !program || !block_year || !booth_id) {
-      return res.status(400).json({
-        message: "Please complete all required fields.",
-      });
-    }
-
     await client.query("BEGIN");
 
-    // Find student
-    let student = await client.query(
+    // --------------------------------------
+    // Check if student already exists
+    // --------------------------------------
+
+    let studentResult = await client.query(
       `
             SELECT id
             FROM students
@@ -75,14 +87,15 @@ router.post("/", async (req, res) => {
 
     let studentDbId;
 
-    // Existing student
-    if (student.rows.length > 0) {
-      studentDbId = student.rows[0].id;
+    if (studentResult.rows.length > 0) {
+      studentDbId = studentResult.rows[0].id;
 
+      // Update student information
       await client.query(
         `
                 UPDATE students
-                SET full_name = $1,
+                SET
+                    full_name = $1,
                     program = $2,
                     block_year = $3
                 WHERE id = $4
@@ -90,17 +103,16 @@ router.post("/", async (req, res) => {
         [full_name, program, block_year, studentDbId],
       );
     } else {
-      // New student
+      // --------------------------------------
+      // Create new student
+      // --------------------------------------
+
       const newStudent = await client.query(
         `
                 INSERT INTO students
-                (
-                    student_id,
-                    full_name,
-                    program,
-                    block_year
-                )
-                VALUES ($1, $2, $3, $4)
+                    (student_id, full_name, program, block_year)
+                VALUES
+                    ($1, $2, $3, $4)
                 RETURNING id
                 `,
         [student_id, full_name, program, block_year],
@@ -109,7 +121,10 @@ router.post("/", async (req, res) => {
       studentDbId = newStudent.rows[0].id;
     }
 
-    // Check duplicate booth visit
+    // --------------------------------------
+    // Check duplicate booth registration
+    // --------------------------------------
+
     const duplicate = await client.query(
       `
             SELECT id
@@ -128,15 +143,16 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Create booth log
-    const log = await client.query(
+    // --------------------------------------
+    // Create booth visit
+    // --------------------------------------
+
+    const logResult = await client.query(
       `
             INSERT INTO booth_logs
-            (
-                student_id,
-                booth_id
-            )
-            VALUES ($1, $2)
+                (student_id, booth_id)
+            VALUES
+                ($1, $2)
             RETURNING *
             `,
       [studentDbId, booth_id],
@@ -145,13 +161,20 @@ router.post("/", async (req, res) => {
     await client.query("COMMIT");
 
     res.status(201).json({
-      message: "Student registered successfully!",
-      registration: log.rows[0],
+      message: "Student registered successfully.",
+      registration: logResult.rows[0],
     });
   } catch (error) {
     await client.query("ROLLBACK");
 
     console.error("CREATE LOG ERROR:", error);
+
+    // PostgreSQL duplicate constraint
+    if (error.code === "23505") {
+      return res.status(409).json({
+        message: "This student is already registered for this booth.",
+      });
+    }
 
     res.status(500).json({
       message: "Registration failed.",
@@ -161,15 +184,20 @@ router.post("/", async (req, res) => {
   }
 });
 
-// ==============================
+// ==========================================
 // DELETE REGISTRATION
-// ==============================
+// ==========================================
+
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
     const result = await pool.query(
-      "DELETE FROM booth_logs WHERE id = $1 RETURNING *",
+      `
+            DELETE FROM booth_logs
+            WHERE id = $1
+            RETURNING *
+            `,
       [id],
     );
 
@@ -192,7 +220,4 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-// ==============================
-// EXPORT ROUTER
-// ==============================
 module.exports = router;
